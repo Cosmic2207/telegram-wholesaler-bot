@@ -577,9 +577,80 @@ async def admin_deliver_order(update: Update, context: ContextTypes.DEFAULT_TYPE
     if order:
         await context.bot.send_message(chat_id=order['user_id'], text=f"Your Order #{order_id} has been Delivered!")
 
+# Initialize database and populate sample data on startup
+def init_database():
+    """Create tables and populate sample data if empty."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Create tables
+    cursor.execute('''CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        category TEXT NOT NULL,
+        price REAL NOT NULL,
+        stock INTEGER NOT NULL
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS carts (
+        user_id INTEGER PRIMARY KEY
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS cart_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES carts(user_id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        delivery_details TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        price_at_order REAL NOT NULL,
+        FOREIGN KEY (order_id) REFERENCES orders(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )''')
+    
+    # Check if products table is empty, populate sample data
+    count = cursor.execute('SELECT COUNT(*) FROM products').fetchone()[0]
+    if count == 0:
+        sample_products = [
+            ('Organic Apples', 'Fresh, crisp organic apples (per kg)', 'Fruits', 3.50, 100),
+            ('Bananas', 'Sweet and ripe bananas (per kg)', 'Fruits', 2.00, 150),
+            ('Carrots', 'Locally sourced fresh carrots (per kg)', 'Vegetables', 1.80, 200),
+            ('Potatoes', 'Versatile russet potatoes (per kg)', 'Vegetables', 1.20, 300),
+            ('Milk (1L)', 'Full cream dairy milk', 'Dairy', 2.80, 50),
+            ('Cheddar Cheese (250g)', 'Aged sharp cheddar cheese', 'Dairy', 5.00, 30),
+            ('Whole Wheat Bread', 'Freshly baked whole wheat loaf', 'Bakery', 3.20, 40),
+            ('Eggs (Dozen)', 'Farm fresh large eggs', 'Pantry', 4.00, 60),
+            ('Rice (5kg)', 'Premium long-grain rice', 'Pantry', 8.00, 70),
+            ('Chicken Breast (1kg)', 'Boneless, skinless chicken breast', 'Meat', 12.00, 25)
+        ]
+        cursor.executemany(
+            'INSERT INTO products (name, description, category, price, stock) VALUES (?, ?, ?, ?, ?)',
+            sample_products
+        )
+        logger.info('Sample products populated.')
+    
+    conn.commit()
+    conn.close()
+    logger.info('Database initialized successfully.')
+
 # Main function
 def main() -> None:
     """Start the bot."""
+    # Initialize database on startup
+    init_database()
+    
     application = Application.builder().token(BOT_TOKEN).build()
 
     # User commands
