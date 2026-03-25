@@ -67,12 +67,16 @@ def get_cart_total(user_id):
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
+    logger.info(f"User {user.id} ({user.username}) started the bot. ADMIN_USER_ID={ADMIN_USER_ID}")
     keyboard = [
         [InlineKeyboardButton("Browse Products", callback_data="browse_products")],
         [InlineKeyboardButton("View Cart", callback_data="view_cart")],
         [InlineKeyboardButton("My Orders", callback_data="my_orders")],
         [InlineKeyboardButton("Help & Info", callback_data="help_info")],
     ]
+    # Show admin button if user is admin
+    if user.id == ADMIN_USER_ID:
+        keyboard.append([InlineKeyboardButton("Admin Panel", callback_data="admin_start")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_html(
         f"Hi {user.mention_html()}! Welcome to the Wholesaler Shop Bot. How can I help you today?",
@@ -398,18 +402,34 @@ async def help_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Admin Commands
 async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    if user_id != ADMIN_USER_ID:
-        await update.message.reply_text("You are not authorized to use admin commands.")
-        return
-
-    keyboard = [
-        [InlineKeyboardButton("View Pending Orders", callback_data="admin_view_pending_orders")],
-        [InlineKeyboardButton("View All Orders", callback_data="admin_view_all_orders")],
-        [InlineKeyboardButton("Back to Main Menu", callback_data="start")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Welcome, Admin!", reply_markup=reply_markup)
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        user_id = query.from_user.id
+        logger.info(f"Admin access attempt by user_id={user_id}, ADMIN_USER_ID={ADMIN_USER_ID}")
+        if user_id != ADMIN_USER_ID:
+            await query.edit_message_text(f"Not authorized. Your ID: {user_id}")
+            return
+        keyboard = [
+            [InlineKeyboardButton("View Pending Orders", callback_data="admin_view_pending_orders")],
+            [InlineKeyboardButton("View All Orders", callback_data="admin_view_all_orders")],
+            [InlineKeyboardButton("Back to Main Menu", callback_data="start")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("Welcome, Admin!", reply_markup=reply_markup)
+    else:
+        user_id = update.effective_user.id
+        logger.info(f"Admin access attempt by user_id={user_id}, ADMIN_USER_ID={ADMIN_USER_ID}")
+        if user_id != ADMIN_USER_ID:
+            await update.message.reply_text(f"Not authorized. Your ID: {user_id}")
+            return
+        keyboard = [
+            [InlineKeyboardButton("View Pending Orders", callback_data="admin_view_pending_orders")],
+            [InlineKeyboardButton("View All Orders", callback_data="admin_view_all_orders")],
+            [InlineKeyboardButton("Back to Main Menu", callback_data="start")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Welcome, Admin!", reply_markup=reply_markup)
 
 async def admin_view_pending_orders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
